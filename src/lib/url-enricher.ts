@@ -1,9 +1,30 @@
+import dns from 'node:dns/promises';
+import net from 'node:net';
+import { URL } from 'node:url';
 import * as cheerio from 'cheerio';
 import { logger } from './logger.js';
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`]+/gi;
 const FETCH_TIMEOUT_MS = 5_000;
 const MAX_BYTES = 512 * 1024;
+
+const PRIVATE_IP_RE =
+  /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.|fc|fd|fe80|::1|100\.(6[4-9]|[7-9]\d|1[0-2]\d))/i;
+
+async function isSafeUrl(urlStr: string): Promise<boolean> {
+  try {
+    const parsed = new URL(urlStr);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+    const hostname = parsed.hostname;
+    if (hostname === 'localhost' || hostname === '[::1]') return false;
+    if (net.isIP(hostname) && PRIVATE_IP_RE.test(hostname)) return false;
+    const { address } = await dns.lookup(hostname);
+    if (PRIVATE_IP_RE.test(address)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export interface EnrichedUrl {
   url: string;
@@ -21,6 +42,10 @@ export async function enrichUrls(text: string): Promise<EnrichedUrl[]> {
 
 async function fetchTitle(url: string): Promise<EnrichedUrl> {
   try {
+    if (!(await isSafeUrl(url))) {
+      logger.debug({ url }, 'url blocked by SSRF filter');
+      return { url, title: null };
+    }
     const res = await fetch(url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       redirect: 'follow',

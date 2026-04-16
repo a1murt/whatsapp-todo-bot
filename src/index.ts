@@ -28,12 +28,27 @@ import {
 import { parseWhen } from './lib/duration.js';
 import { augmentTextWithUrls, enrichUrls, urlsAsNotes } from './lib/url-enricher.js';
 import type { Task } from './schemas/task.schema.js';
+import crypto from 'node:crypto';
 import type pkg from 'whatsapp-web.js';
 
 type WAMessage = pkg.Message;
 
 const CLARIFY_REF_RE = /_ref #cl-([a-z0-9]{6})_/i;
 const MAX_INPUT_LENGTH = 10_000;
+
+const RATE_WINDOW_MS = 60_000;
+const RATE_LIMIT = 20;
+const msgTimestamps: number[] = [];
+
+function isRateLimited(): boolean {
+  const now = Date.now();
+  while (msgTimestamps.length > 0 && msgTimestamps[0]! < now - RATE_WINDOW_MS) {
+    msgTimestamps.shift();
+  }
+  if (msgTimestamps.length >= RATE_LIMIT) return true;
+  msgTimestamps.push(now);
+  return false;
+}
 
 function clampInput(text: string, log: { warn: (o: object, m: string) => void }): string {
   if (text.length <= MAX_INPUT_LENGTH) return text;
@@ -69,7 +84,7 @@ function extractTimeOfDay(iso: string, tz: string): string | null {
 }
 
 function genClarifyRef(): string {
-  return Math.random().toString(36).slice(2, 8);
+  return crypto.randomBytes(4).toString('hex').slice(0, 6);
 }
 
 async function main() {
@@ -582,6 +597,11 @@ async function main() {
   wa.onMessage(async (msg) => {
     const isSelfChat = await wa.isSelfChat(msg);
     if (!isSelfChat) return;
+
+    if (isRateLimited()) {
+      logger.warn('rate limited — dropping message');
+      return;
+    }
 
     // Priority 1: clarification reply (text with quoted bot msg containing ref)
     if (await tryHandleClarifyReply(msg)) return;
