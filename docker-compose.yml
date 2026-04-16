@@ -1,0 +1,28 @@
+services:
+  bot:
+    build: .
+    image: whatsapp-todo-bot:latest
+    container_name: whatsapp-todo-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+    volumes:
+      - wweb-auth:/app/.wwebjs_auth
+      - wweb-cache:/app/.wwebjs_cache
+      - wa-bot-db:/app/data
+    # Chromium inside the container wants a bit more shm than the default 64 MB
+    shm_size: "1gb"
+    tty: true
+    stdin_open: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  wweb-auth:
+  wweb-cache:
+  wa-bot-db:

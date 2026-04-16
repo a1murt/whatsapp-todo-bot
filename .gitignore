@@ -1,0 +1,17 @@
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+.env
+.env.local
+dist/
+*.log
+ruvector.db
+data/
+.claude-flow/
+.swarm/
+.claude/
+.mcp.json
+.overnight/
+AUTONOMY_RULES.md
+FEATURE_QUEUE.md
+FINAL_SUMMARY.md
