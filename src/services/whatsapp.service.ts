@@ -177,7 +177,9 @@ export function createWhatsAppService(): WhatsAppService {
     // falls back to contact lookup for resilience against id-format drift.
     async isSelfChat(msg) {
       if (!msg.fromMe) return false;
-      if (cachedSelfChatId && (msg.to === cachedSelfChatId || msg.from === cachedSelfChatId)) {
+      // Only check msg.to — msg.from is ALWAYS our own WID for outgoing messages,
+      // so checking it would make every outgoing message look like self-chat.
+      if (cachedSelfChatId && msg.to === cachedSelfChatId) {
         return true;
       }
       try {
